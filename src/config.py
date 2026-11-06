@@ -16,6 +16,10 @@ class Settings(BaseSettings):
         default="sk-your-api-key-here",
         description="允许的 API Key 列表（逗号分隔）",
     )
+    cookies: str = Field(
+        default="",
+        description="元宝登录 Cookie（优先使用；未配置时回退扫码登录）。格式: hy_user=xxx; hy_token=yyy",
+    )
     agent_id: str = "naQivTmsDa"
     page_url: str = "https://yuanbao.tencent.com/chat/naQivTmsDa"
     page_timeout: int = 60000

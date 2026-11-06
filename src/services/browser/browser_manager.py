@@ -2,7 +2,8 @@
 
 import asyncio
 import logging
-from typing import Dict, Optional
+from typing import Dict, List, Optional
+from urllib.parse import urlparse
 
 from playwright.async_api import Browser, Page, async_playwright
 
@@ -61,14 +62,82 @@ class BrowserManager:
             logger.error(f"[Browser] 页面加载失败: {e}")
             raise
 
-    async def login(self) -> Dict:
-        """执行登录流程，返回二维码信息
+    @staticmethod
+    def _parse_cookie_string(cookie_str: str) -> List[Dict]:
+        """将 Cookie 字符串解析为 Playwright Cookie 列表
+
+        Args:
+            cookie_str: 形如 `hy_user=xxx; hy_token=yyy` 的 Cookie 字符串
+
+        Returns:
+            List[Dict]: Playwright add_cookies 所需格式
+        """
+        parsed = urlparse(settings.page_url)
+        domain = parsed.hostname or "yuanbao.tencent.com"
+
+        cookies: List[Dict] = []
+        for part in cookie_str.split(";"):
+            part = part.strip()
+            if not part or "=" not in part:
+                continue
+            name, value = part.split("=", 1)
+            name, value = name.strip(), value.strip()
+            if not name:
+                continue
+            cookies.append(
+                {
+                    "name": name,
+                    "value": value,
+                    "domain": domain,
+                    "path": "/",
+                }
+            )
+        return cookies
+
+    async def _needs_login(self) -> bool:
+        """检测当前页面是否仍需要登录"""
+        try:
+            login_button = self.page.get_by_role("img").first
+            await login_button.wait_for(state="visible", timeout=5000)
+            return True
+        except Exception:
+            return False
+
+    async def _login_with_cookies(self) -> Dict:
+        """使用配置的 Cookie 登录
 
         Returns:
             Dict: 登录结果字典
         """
-        await self.ensure_browser()
+        cookie_list = self._parse_cookie_string(settings.cookies)
+        if not cookie_list:
+            return {"success": False, "message": "Cookie 格式无效"}
 
+        names = [c["name"] for c in cookie_list]
+        logger.info(f"[Browser] 检测到 Cookie 配置，优先使用 Cookie 登录: {names}")
+
+        try:
+            await self.page.context.add_cookies(cookie_list)
+            await self.page.reload(timeout=settings.page_timeout)
+            await self.page.wait_for_timeout(3000)
+
+            if await self._needs_login():
+                logger.warning("[Browser] Cookie 登录失败，页面仍需登录")
+                return {"success": False, "message": "Cookie 无效或已过期"}
+
+            self._is_logged_in = True
+            logger.info("[Browser] Cookie 登录成功")
+            return {"success": True, "message": "Cookie 登录成功"}
+        except Exception as e:
+            logger.error(f"[Browser] Cookie 登录失败: {e}")
+            return {"success": False, "message": f"Cookie 登录失败: {str(e)}"}
+
+    async def _login_with_qrcode(self) -> Dict:
+        """扫码登录
+
+        Returns:
+            Dict: 登录结果字典
+        """
         try:
             login_button = self.page.get_by_role("img").first
             await login_button.wait_for(state="visible")
@@ -101,11 +170,29 @@ class BrowserManager:
                     "qrcode_path": settings.qrcode_path,
                 }
         except Exception as e:
-            logger.error(f"[Browser] 登录失败: {e}")
+            logger.error(f"[Browser] 扫码登录失败: {e}")
             return {
                 "success": False,
-                "message": f"登录失败: {str(e)}",
+                "message": f"扫码登录失败: {str(e)}",
             }
+
+    async def login(self) -> Dict:
+        """执行登录流程：优先 Cookie，未配置或失败时回退扫码
+
+        Returns:
+            Dict: 登录结果字典
+        """
+        await self.ensure_browser()
+
+        if settings.cookies.strip():
+            result = await self._login_with_cookies()
+            if result.get("success"):
+                return result
+            logger.warning(f"[Browser] Cookie 登录未成功（{result.get('message')}），回退到扫码登录")
+        else:
+            logger.info("[Browser] 未配置 Cookie，使用扫码登录")
+
+        return await self._login_with_qrcode()
 
     async def get_headers(self) -> Optional[Dict]:
         """获取请求头

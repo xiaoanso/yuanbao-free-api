@@ -8,7 +8,7 @@
 🚀 **支持主流元宝大模型**（DeepSeek/HunYuan系列）
 ⚡️ **流式输出 & 网络搜索功能**
 🖼️ **支持上传图片或文件**
-🔐 **自动浏览器登录认证**
+🔐 **支持 Cookie / 扫码登录**（优先 Cookie，未配置时自动扫码）
 📦 **开箱即用的部署方案**（本地/Docker）
 
 ## ⚠️ 使用须知
@@ -39,9 +39,10 @@ playwright install chromium
 # 复制环境变量示例文件
 cp .env.example .env
 
-# 编辑 .env 文件，配置 API Keys
+# 编辑 .env 文件，配置 API Keys（可选配置 COOKIES）
 # 支持多个 key，用逗号分隔
 # API_KEYS=sk-your-api-key-here,sk-another-api-key
+# COOKIES=hy_source=web; hy_user=xxx; hy_token=yyy
 ```
 
 ## 🖥️ 服务端部署
@@ -49,7 +50,7 @@ cp .env.example .env
 ### 本地运行
 
 ```bash
-# 启动服务（首次启动会自动打开浏览器进行扫码登录）
+# 启动服务（已配置 COOKIES 则直接登录；否则终端扫码登录）
 python app.py
 
 # 服务地址：http://localhost:8000
@@ -85,8 +86,13 @@ docker run -d -p 8000:8000 --name yuanbao-api yuanbao-free-api
 在 `.env` 文件中配置以下变量：
 
 ```bash
-# API 认证密钥（多个 key 用逗号分隔，必填）
+# 本服务访问密钥（调用 API 时 Bearer Token 校验用，非元宝登录凭证；可自定义，多个用逗号分隔）
 API_KEYS=sk-your-api-key-here,sk-another-api-key
+
+# 元宝登录 Cookie（推荐；优先于扫码登录）
+# 登录 yuanbao.tencent.com 后，从 DevTools > Application > Cookies 复制
+# 至少包含 hy_user、hy_token
+# COOKIES=hy_source=web; hy_user=xxx; hy_token=yyy
 
 # Agent ID（默认为 naQivTmsDa，一般无需修改）
 # AGENT_ID=naQivTmsDa
@@ -100,14 +106,13 @@ API_KEYS=sk-your-api-key-here,sk-another-api-key
 
 ### 认证机制
 
-本项目使用浏览器自动化方式自动获取认证参数：
+本项目使用浏览器自动化方式获取认证参数，登录优先级如下：
 
-- 服务启动时自动启动无头浏览器
-- 自动打开腾讯元宝登录页面
-- 通过二维码扫码登录
-- 自动拦截认证请求头（x-uskey 等）
+1. **Cookie 登录（优先）**：`.env` 中配置了 `COOKIES` 时，启动后注入 Cookie 并验证登录态
+2. **扫码登录（回退）**：未配置 Cookie，或 Cookie 无效/过期时，在终端展示二维码扫码登录
+3. 登录成功后自动拦截认证请求头（x-uskey 等）
 
-**注意**：首次启动时需要在终端显示的二维码上完成扫码登录。
+**获取 Cookie**：打开 [腾讯元宝](https://yuanbao.tencent.com/)，登录后按 F12 → Application → Cookies，复制 `hy_user`、`hy_token`（建议一并带上 `hy_source=web`）。
 
 ## 🌟 应用案例
 

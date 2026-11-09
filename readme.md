@@ -59,11 +59,15 @@ python app.py
 ### Docker 部署
 
 ```bash
-# 构建镜像
-docker build -t yuanbao-free-api .
+# 准备配置
+cp .env.example .env
+# 可在 .env 中修改 PORT（默认 8300）
 
-# 运行容器
-docker run -d -p 8000:8000 --name yuanbao-api yuanbao-free-api
+# 构建镜像并启动容器（名称：yuanbao-free-api）
+docker compose up -d --build
+
+# 查看日志
+docker compose logs -f
 ```
 
 ## 🧠 支持模型

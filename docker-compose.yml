@@ -1,9 +1,11 @@
 services:
   api:
     build: .
+    image: yuanbao-free-api
+    container_name: yuanbao-free-api
     env_file:
       - .env
     ports:
-      - "8000:8000"
+      - "${PORT:-8300}:8300"
     init: true
     restart: unless-stopped

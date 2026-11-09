@@ -30,10 +30,7 @@ def print_qr_to_terminal(image_path: str):
         qr.make(fit=True)
         qr.print_ascii(invert=True)
 
-        print()
-        print("=" * 50)
-        print(f"  二维码内容: {qr_content}")
-        print("=" * 50 + "\n")
+        print("\n" + "=" * 50 + "\n")
     else:
         logger.warning("二维码解码失败")
 

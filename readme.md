@@ -70,6 +70,8 @@ docker compose up -d --build
 docker compose logs -f
 ```
 
+阿里云 ECS 没有桌面窗口；未配置 `COOKIES` 时，扫码二维码会输出在容器启动日志中。二维码是短时登录凭证，请勿公开日志。
+
 ## 🧠 支持模型
 
 | 模型名称              | 特性说明                    |

@@ -5,7 +5,7 @@ import logging
 from typing import Dict, List, Optional
 from urllib.parse import urlparse
 
-from playwright.async_api import Browser, Page, async_playwright
+from playwright.async_api import Browser, Page, TimeoutError as PlaywrightTimeoutError, async_playwright
 
 from src.config import settings
 from src.utils.qr_utils import print_qr_to_terminal
@@ -96,12 +96,7 @@ class BrowserManager:
 
     async def _needs_login(self) -> bool:
         """检测当前页面是否仍需要登录"""
-        try:
-            login_button = self.page.get_by_role("img").first
-            await login_button.wait_for(state="visible", timeout=5000)
-            return True
-        except Exception:
-            return False
+        return await self.page.locator("button.agent-dialogue__tool__login").is_visible()
 
     async def _login_with_cookies(self) -> Dict:
         """使用配置的 Cookie 登录
@@ -139,12 +134,15 @@ class BrowserManager:
             Dict: 登录结果字典
         """
         try:
-            login_button = self.page.get_by_role("img").first
-            await login_button.wait_for(state="visible")
-            await login_button.click()
+            login_button = self.page.locator("button.agent-dialogue__tool__login")
+            await login_button.wait_for(state="visible", timeout=settings.page_timeout)
 
-            iframe_frame = self.page.frame_locator("iframe")
-            qrcode_locator = iframe_frame.get_by_role("img")
+            iframe_locator = self.page.locator("iframe")
+            if not await iframe_locator.count():
+                # Yuanbao's login overlay intercepts pointer events over its own login button.
+                await login_button.click(force=True)
+
+            qrcode_locator = self.page.frame_locator("iframe").locator("img.qrcode")
             await qrcode_locator.wait_for(state="visible", timeout=10000)
 
             await qrcode_locator.screenshot(path=settings.qrcode_path)
@@ -162,7 +160,7 @@ class BrowserManager:
                     "message": "登录成功",
                     "qrcode_path": settings.qrcode_path,
                 }
-            except TimeoutError:
+            except PlaywrightTimeoutError:
                 logger.warning("[Browser] 扫码超时或未检测到登录成功")
                 return {
                     "success": False,
